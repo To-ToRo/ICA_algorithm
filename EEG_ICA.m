@@ -2,6 +2,8 @@ clear; close all; clc
 
 load('EEG_data')
 
+load('source')
+
 plot(Data(:,1))
 title("Fp1 Before Blink Removal", 'FontSize', 14)
 
@@ -15,7 +17,7 @@ disp(strcat("Top ", string(q), " principal components explain ", ...
 %% ICA
 
 % compute independent components from principal components
-Mdl = rica(Data_PCA, q);
+Mdl = rica(Data_PCA, q,'IterationLimit',1000);
 Data_ICA = transform(Mdl, Data_PCA);
 
 %% PLOT RESULTING COMPONENTS
@@ -23,17 +25,11 @@ Data_ICA = transform(Mdl, Data_PCA);
 % define number of plots per column of figure
 plotsPerCol = 8;
 
-% set up figure
-figure(2)
-fig = gcf;
-fig.Units = 'normalized';
-fig.Position = [0 0 1 1];
-
 % plot components
 for i = 1:q
     
     subplot(plotsPerCol,ceil(q/plotsPerCol),i)
-    plot(Data_ICA(:,i).^2)
+    plot(Data(:,i))
     title(strcat("Component ", string(i), " Squared"), 'FontSize', 16)
     ax = gca;
     ax.XTickLabel = {};
