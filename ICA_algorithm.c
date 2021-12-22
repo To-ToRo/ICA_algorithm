@@ -11,7 +11,7 @@
 #define CH_NUM 16
 #define ALPHA 1.2
 #define MAX_TIME 10000
-#define LEARN_COUNT 1000
+#define LEARN_COUNT 100
 
 double sigmoid(double x)
 {
@@ -55,7 +55,7 @@ int main(void)
      */
     double weight[CH_NUM][CH_NUM];
     // srand((unsigned int)time(NULL));
-    srand(16);
+    srand(1000);
     double sum = 0.0;
     for (int i = 0; i < CH_NUM; i++)
     {
