@@ -1,3 +1,4 @@
+from numpy.lib.npyio import genfromtxt
 import seaborn as sns
 from matplotlib import pyplot as plt
 from scipy.io import wavfile
@@ -90,6 +91,23 @@ def plot_mixture_sources_predictions(X, original_sources, S):
     plt.show()
 
 
+def plot_mixture_predictions(X, S):
+    fig = plt.figure()
+    plt.subplot(2, 1, 1)
+    for x in X:
+        plt.plot(x)
+    plt.title("mixtures")
+    plt.subplot(2, 1, 2)
+    for s in S:
+        plt.plot(s)
+
+    # plt.plot(S[0])
+
+    plt.title("predicted sources")
+    fig.tight_layout()
+    plt.show()
+
+
 def mix_sources(mixtures, apply_noise=False):
     for i in range(len(mixtures)):
 
@@ -114,12 +132,16 @@ s1 = np.sin(2 * time)  # sinusoidal
 s2 = np.sign(np.sin(3 * time))  # square signal
 s3 = signal.sawtooth(2 * np.pi * time)  # saw tooth signal
 
-X = np.c_[s1, s2, s3]
+# X = np.c_[s1, s2, s3]
 A = np.array(([[1, 1, 1], [0.5, 2, 1.0], [1.5, 1.0, 2.0]]))
-X = np.dot(X, A.T)
+# print(A)
+# X = np.dot(X, A.T)
+X = genfromtxt('PCA.csv', delimiter=',', encoding="utf8", dtype=float)
+# print(X)
 X = X.T
 S = ica(X, iterations=1000)
-plot_mixture_sources_predictions(X, [s1, s2, s3], S)
+plot_mixture_predictions(X, S)
+# plot_mixture_sources_predictions(X, [s1, s2, s3], S)
 
 # sampling_rate, mix1 = wavfile.read('mix1.wav')
 # sampling_rate, mix2 = wavfile.read('mix2.wav')

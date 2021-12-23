@@ -7,7 +7,7 @@ load('source')
 plot(Data(:,1))
 title("Fp1 Before Blink Removal", 'FontSize', 14)
 
-q=4;
+q=3;
 
 [coeff,Data_PCA,latent,tsquared,explained,mu] = pca(Data, 'NumComponents', q);
 
@@ -23,7 +23,7 @@ Data_ICA = transform(Mdl, Data_PCA);
 %% PLOT RESULTING COMPONENTS
 
 % define number of plots per column of figure
-plotsPerCol = 2;
+plotsPerCol = 1;
 
 % plot components
 for i = 1:q
