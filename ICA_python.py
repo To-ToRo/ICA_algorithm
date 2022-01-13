@@ -36,13 +36,51 @@ def whitening(X):
 
 
 def calculate_new_w(w, X):
-    w_new = (X * g(np.dot(w.T, X))).mean(axis=1) - \
-        g_der(np.dot(w.T, X)).mean() * w
-    # w_new = 2 * w + ALPHA * \
-    #     np.dot((g(np.dot(w, X)).mean(axis=0),
-    #            np.dot(X.T, w)), w.T)
-    w_new /= np.sqrt((w_new ** 2).sum())
+    # * 원래 코드
+    # w_new = (X * g(np.dot(w.T, X))).mean(axis=1) - \
+    #     g_der(np.dot(w.T, X)).mean() * w
+
+    # 논문 알고리즘 적용
+    # w /= np.sqrt((w ** 2).sum())  # 앞에서 NORM
+
+    zsum = np.zeros((1, 3), dtype=X.dtype)
+    for i in range(2000):
+        zTw = np.zeros((3, 3), dtype=X.dtype)
+        for j in range(3):
+            for k in range(3):
+                zTw[j][k] = X[:, i][j] * w[k]
+        zsum += np.dot(X[:, i], np.dot(np.dot(zTw, zTw), zTw)) / 2000
+    w_new = zsum - 3 * w
+
+    w_new /= np.sqrt((w_new ** 2).sum())  # 뒤에서 NORM
     return w_new
+
+
+# 논문 알고리즘 적용
+def symm_orth(W):
+    W_2 = W ** 2
+    max_sum = 0
+    for col in range(W_2.shape[0]):
+        if max_sum < W_2[col, :].sum():
+            max_sum = W_2[col, :].sum()
+    W = W / np.sqrt(max_sum)
+
+    # * 테스트용
+    # W[0, :] /= np.sqrt((W[0, :] ** 2).sum())
+    # W[1, :] /= np.sqrt((W[1, :] ** 2).sum())
+    # W[2, :] /= np.sqrt((W[2, :] ** 2).sum())
+
+    W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
+    #! 여기서 돌지 FastICA에서 돌지
+    # while (1):
+    #     # print("WTW")
+    #     # print(np.dot(W.T, W))
+    #     W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
+    #     WTW = np.abs(np.dot(W.T, W) - np.identity(n=3)).sum()
+
+    #     if (WTW < 0.00001):
+    #         break
+    return W
 
 
 def ica(X, iterations, tolerance=1e-5):
@@ -50,25 +88,51 @@ def ica(X, iterations, tolerance=1e-5):
     X = whitening(X)
     components_nr = X.shape[0]
 
+    # Generate random W
     W = np.zeros((components_nr, components_nr), dtype=X.dtype)
+    W_new = np.zeros((components_nr, components_nr), dtype=X.dtype)
+    np.random.seed(1000)
     for i in range(components_nr):
+        W[i] = np.random.rand(components_nr)
 
-        w = np.random.rand(components_nr)
+    i_cnt = 0
+    for i in range(iterations):
+        i_cnt += 1
+        # one-unit fast ica module
+        W_new[0] = calculate_new_w(W[0], X)
+        W_new[1] = calculate_new_w(W[1], X)
+        W_new[2] = calculate_new_w(W[2], X)
 
-        for j in range(iterations):
-            w_new = calculate_new_w(w, X)
+        # Error calculation module
+        distance = np.abs((W - W_new)).sum()
+        orth_test = np.abs((np.dot(W_new.T, W_new) - np.identity(n=3))).sum()
 
-            if i >= 1:
-                w_new -= np.dot(np.dot(w_new, W[:i].T), W[:i])
-            distance = np.abs(np.abs((w * w_new).sum()) - 1)
-            w = w_new
-            if distance < tolerance:
-                break
+        if (distance < tolerance) and (orth_test < tolerance):
+            W = W_new
+            print(i_cnt)
+            break
 
-        W[i, :] = w
+        # Symmetric Orthogonalization module
+        W_new = symm_orth(W_new)
+        W = W_new
 
+    # * 원래 코드
+    # for i in range(components_nr):
+
+    #     w = np.random.rand(components_nr)
+
+    #     for j in range(iterations):
+    #         w_new = calculate_new_w(w, X)
+    #         if i >= 1:
+    #             w_new -= np.dot(np.dot(w_new, W[:i].T), W[:i])
+    #         # print(W[:i])
+    #         distance = np.abs(np.abs((w * w_new).sum()) - 1)
+    #         w = w_new
+    #         if distance < tolerance:
+    #             break
+    #     W[i, :] = w
+    print(W)
     S = np.dot(W, X)
-
     return S
 
 
@@ -93,15 +157,15 @@ def plot_mixture_sources_predictions(X, original_sources, S):
 
 def plot_mixture_predictions(X, S):
     fig = plt.figure()
-    plt.subplot(2, 1, 1)
-    for x in X:
-        plt.plot(x)
-    plt.title("mixtures")
-    plt.subplot(2, 1, 2)
-    for s in S:
-        plt.plot(s)
+    # plt.subplot(2, 1, 1)
+    # for x in X:
+    #     plt.plot(x)
+    # plt.title("mixtures")
+    # plt.subplot(2, 1, 2)
+    # for s in S:
+    #     plt.plot(s)
 
-    # plt.plot(S[0])
+    plt.plot(S[0])
 
     plt.title("predicted sources")
     fig.tight_layout()
@@ -132,16 +196,17 @@ s1 = np.sin(2 * time)  # sinusoidal
 s2 = np.sign(np.sin(3 * time))  # square signal
 s3 = signal.sawtooth(2 * np.pi * time)  # saw tooth signal
 
-# X = np.c_[s1, s2, s3]
+X = np.c_[s1, s2, s3]
 A = np.array(([[1, 1, 1], [0.5, 2, 1.0], [1.5, 1.0, 2.0]]))
 # print(A)
-# X = np.dot(X, A.T)
-X = genfromtxt('PCA.csv', delimiter=',', encoding="utf8", dtype=float)
+X = np.dot(X, A.T)
+# X = genfromtxt('PCA.csv', delimiter=',', encoding="utf8", dtype=float)
 # print(X)
 X = X.T
-S = ica(X, iterations=1000)
-plot_mixture_predictions(X, S)
-# plot_mixture_sources_predictions(X, [s1, s2, s3], S)
+S = ica(X, iterations=70)
+# plot_mixture_predictions(X, S)
+#plot_mixture_sources_predictions(X, [s1, s2, s3], np.dot(S.T, A.T).T)
+plot_mixture_sources_predictions(X, [s1, s2, s3], S)
 
 # sampling_rate, mix1 = wavfile.read('mix1.wav')
 # sampling_rate, mix2 = wavfile.read('mix2.wav')
