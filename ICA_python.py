@@ -41,85 +41,130 @@ def calculate_new_w(w, X):
     #     g_der(np.dot(w.T, X)).mean() * w
 
     # * 논문 알고리즘 적용
-    # w /= np.sqrt((w ** 2).sum())  # 앞에서 NORM
-
     zmean = np.zeros((1, 3), dtype=X.dtype)
-    for i in range(2000):
+    for i in range(X.shape[1]):
         zTw = np.zeros((3, 3), dtype=X.dtype)
         for j in range(3):
             for k in range(3):
                 zTw[j][k] = X[:, i][j] * w[k]
         # 여기 곱이 잘못되어 있었음
-        zmean += (np.dot(np.dot(np.dot(zTw, zTw), zTw), X[:, i].T) / 2000)
+        zmean += (np.dot(np.dot(np.dot(zTw, zTw), zTw),
+                  X[:, i].T) / X.shape[1])
     w_new = zmean - 3 * w
 
-    w_new /= np.sqrt((w_new ** 2).sum())  # 뒤에서 NORM
     return w_new
 
 
 # 논문 알고리즘 적용
 def symm_orth(W):
-    # W_2 = W ** 2
+    # ? NORM2 Largest absolute value
     # max_sum = 0
-    # for col in range(W_2.shape[0]):
-    #     if max_sum < W_2[col, :].sum():
-    #         max_sum = W_2[col, :].sum()
-    # W = W / np.sqrt(max_sum)
+    # for row in range(W.shape[0]):
+    #     temp_max = 0
+    #     for col in range(W.shape[1]):
+    #         if temp_max < np.abs(W[row][col]):
+    #             temp_max = np.abs(W[row][col])
+    #     max_sum += temp_max
 
-    # * 테스트용
-    # W[0, :] /= np.sqrt((W[0, :] ** 2).sum())
-    # W[1, :] /= np.sqrt((W[1, :] ** 2).sum())
-    # W[2, :] /= np.sqrt((W[2, :] ** 2).sum())
+    # for row in range(W.shape[0]):
+    #     temp_max = 0
+    #     for col in range(W.shape[1]):
+    #         if temp_max < np.abs(W[col][row]):
+    #             temp_max = np.abs(W[col][row])
+    #     max_sum += temp_max
+    # print(max_sum)
+    # W /= max_sum
+    # ? NORM3
+
+    # W[0] /= np.abs(W[0]).sum()
+    # W[1] /= np.abs(W[1]).sum()
+    # W[2] /= np.abs(W[2]).sum()
 
     W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
-    # W = W - np.dot(np.dot(W, W.T), W)
 
-    #! 여기서 돌지 FastICA에서 돌지
-    # while (1):
-    #     # print("WTW")
-    #     # print(np.dot(W.T, W))
-    #     W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
-    #     WTW = np.abs(np.dot(W.T, W) - np.identity(n=3)).sum()
-
-    #     if (WTW < 0.00001):
-    #         break
     return W
 
 
-def ica(X, iterations, tolerance=1e-5):
+def norm_calc(W):
+    # ? NORM1
+    # W[0] /= np.abs(W[0]).sum()
+    # W[1] /= np.abs(W[1]).sum()
+    # W[2] /= np.abs(W[2]).sum()
+    # ? NORM2 Largest absolute value
+    # max_sum = 0
+    # for col in range(W.shape[0]):
+    #     if max_sum < np.abs(W[:, col]).sum():
+    #         max_sum = np.abs(W[:, col]).sum()
+    # W /= max_sum
+    # ? NORM2
+    # max_sum = 0
+    # for col in range(W.shape[0]):
+    #     if max_sum < np.abs(W[:, col]).sum():
+    #         max_sum = np.abs(W[:, col]).sum()
+    # W /= max_sum
+    # ? NORM3
+    # W[0] /= np.sqrt((W[0]**2).sum())
+    # W[1] /= np.sqrt((W[1]**2).sum())
+    # W[2] /= np.sqrt((W[2]**2).sum())
+    # ? NORM4
+    W /= W.sum()
+
+    return W
+
+
+def ica(X, iterations, tolerance=1e-10):
     X = center(X)
     X = whitening(X)
     components_nr = X.shape[0]
 
-    # Generate random W
     W = np.zeros((components_nr, components_nr), dtype=X.dtype)
     W_new = np.zeros((components_nr, components_nr), dtype=X.dtype)
-    np.random.seed(100)
+    W_ica = np.zeros((components_nr, components_nr), dtype=X.dtype)
+
+    # Generate random W (initial value)
+    np.random.seed(1)
     for i in range(components_nr):
         W[i] = np.random.rand(components_nr)
+    #################################
 
-    i_cnt = 0
     for i in range(iterations):
-        i_cnt += 1
         # one-unit fast ica module
         W_new[0] = calculate_new_w(W[0], X)
         W_new[1] = calculate_new_w(W[1], X)
         W_new[2] = calculate_new_w(W[2], X)
+        ############################
 
         # Error calculation module
-        distance = np.abs((W - W_new)).sum()
-        W = W_new
-        orth_test = np.abs((np.dot(W.T, W) - np.identity(n=3))).sum()
+        distance = np.abs(np.abs(W_new) - np.abs(W_ica)).sum()
 
-        print("DISTSANCE")
-        print(distance)
-        print("ORTH")
-        print(orth_test)
-        if (distance < tolerance) and (orth_test < tolerance):
-            print(i_cnt)
+        W_ica = W_new.copy()
+        W = W_new.copy()
+
+        if distance < tolerance:
+            print("ITERATIONS:")
+            print(i+1)
+            print("DISTSANCE:")
+            print(distance)
+            print("W")
+            print(W)
             break
-        W = symm_orth(W)
-        # Symmetric Orthogonalization module
+        #############################
+
+        # Symmetric Orthogonalization
+        W[0] /= np.sqrt((W[0] ** 2).sum())
+        W[1] /= np.sqrt((W[1] ** 2).sum())
+        W[2] /= np.sqrt((W[2] ** 2).sum())
+        while(1):
+            W = symm_orth(W)
+            orth_test = np.abs((np.dot(W, W.T) - np.identity(n=3))).sum()
+            print(orth_test)
+            if orth_test < 0.0001:
+                break
+        ##############################
+
+        # NORM Divider Block
+        W = norm_calc(W)
+        ##########################
 
     # * 원래 코드
     # for i in range(components_nr):
@@ -136,7 +181,7 @@ def ica(X, iterations, tolerance=1e-5):
     #         if distance < tolerance:
     #             break
     #     W[i, :] = w
-    print(W)
+    # print(W)
     S = np.dot(W, X)
     return S
 
@@ -208,9 +253,10 @@ X = np.dot(X, A.T)
 # X = genfromtxt('PCA.csv', delimiter=',', encoding="utf8", dtype=float)
 # print(X)
 X = X.T
+
 S = ica(X, iterations=70)
 # plot_mixture_predictions(X, S)
-#plot_mixture_sources_predictions(X, [s1, s2, s3], np.dot(S.T, A.T).T)
+# plot_mixture_sources_predictions(X, [s1, s2, s3], np.dot(S.T, A.T).T)
 plot_mixture_sources_predictions(X, [s1, s2, s3], S)
 
 # sampling_rate, mix1 = wavfile.read('mix1.wav')
