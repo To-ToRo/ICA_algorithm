@@ -40,17 +40,18 @@ def calculate_new_w(w, X):
     # w_new = (X * g(np.dot(w.T, X))).mean(axis=1) - \
     #     g_der(np.dot(w.T, X)).mean() * w
 
-    # 논문 알고리즘 적용
+    # * 논문 알고리즘 적용
     # w /= np.sqrt((w ** 2).sum())  # 앞에서 NORM
 
-    zsum = np.zeros((1, 3), dtype=X.dtype)
+    zmean = np.zeros((1, 3), dtype=X.dtype)
     for i in range(2000):
         zTw = np.zeros((3, 3), dtype=X.dtype)
         for j in range(3):
             for k in range(3):
                 zTw[j][k] = X[:, i][j] * w[k]
-        zsum += np.dot(X[:, i], np.dot(np.dot(zTw, zTw), zTw)) / 2000
-    w_new = zsum - 3 * w
+        # 여기 곱이 잘못되어 있었음
+        zmean += (np.dot(np.dot(np.dot(zTw, zTw), zTw), X[:, i].T) / 2000)
+    w_new = zmean - 3 * w
 
     w_new /= np.sqrt((w_new ** 2).sum())  # 뒤에서 NORM
     return w_new
@@ -58,12 +59,12 @@ def calculate_new_w(w, X):
 
 # 논문 알고리즘 적용
 def symm_orth(W):
-    W_2 = W ** 2
-    max_sum = 0
-    for col in range(W_2.shape[0]):
-        if max_sum < W_2[col, :].sum():
-            max_sum = W_2[col, :].sum()
-    W = W / np.sqrt(max_sum)
+    # W_2 = W ** 2
+    # max_sum = 0
+    # for col in range(W_2.shape[0]):
+    #     if max_sum < W_2[col, :].sum():
+    #         max_sum = W_2[col, :].sum()
+    # W = W / np.sqrt(max_sum)
 
     # * 테스트용
     # W[0, :] /= np.sqrt((W[0, :] ** 2).sum())
@@ -71,6 +72,8 @@ def symm_orth(W):
     # W[2, :] /= np.sqrt((W[2, :] ** 2).sum())
 
     W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
+    # W = W - np.dot(np.dot(W, W.T), W)
+
     #! 여기서 돌지 FastICA에서 돌지
     # while (1):
     #     # print("WTW")
@@ -91,7 +94,7 @@ def ica(X, iterations, tolerance=1e-5):
     # Generate random W
     W = np.zeros((components_nr, components_nr), dtype=X.dtype)
     W_new = np.zeros((components_nr, components_nr), dtype=X.dtype)
-    np.random.seed(1000)
+    np.random.seed(100)
     for i in range(components_nr):
         W[i] = np.random.rand(components_nr)
 
@@ -105,16 +108,18 @@ def ica(X, iterations, tolerance=1e-5):
 
         # Error calculation module
         distance = np.abs((W - W_new)).sum()
-        orth_test = np.abs((np.dot(W_new.T, W_new) - np.identity(n=3))).sum()
+        W = W_new
+        orth_test = np.abs((np.dot(W.T, W) - np.identity(n=3))).sum()
 
+        print("DISTSANCE")
+        print(distance)
+        print("ORTH")
+        print(orth_test)
         if (distance < tolerance) and (orth_test < tolerance):
-            W = W_new
             print(i_cnt)
             break
-
+        W = symm_orth(W)
         # Symmetric Orthogonalization module
-        W_new = symm_orth(W_new)
-        W = W_new
 
     # * 원래 코드
     # for i in range(components_nr):
