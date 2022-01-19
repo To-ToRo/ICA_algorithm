@@ -41,15 +41,21 @@ def calculate_new_w(w, X):
     #     g_der(np.dot(w.T, X)).mean() * w
 
     # * 논문 알고리즘 적용
-    zmean = np.zeros((1, 3), dtype=X.dtype)
+    zmean = np.zeros((3), dtype=X.dtype)
     for i in range(X.shape[1]):
         zTw = np.zeros((3, 3), dtype=X.dtype)
         for j in range(3):
             for k in range(3):
-                zTw[j][k] = X[:, i][j] * w[k]
-        # 여기 곱이 잘못되어 있었음
-        zmean += (np.dot(np.dot(np.dot(zTw, zTw), zTw),
-                  X[:, i].T) / X.shape[1])
+                zTw[k][j] = X[:, i][j] * w[k]
+        # zTw = np.matmul(X[:, i].T,  w)
+        # 일단 여기 문제임.
+        zTw3 = np.matmul(np.matmul(zTw, zTw), zTw)
+        # print(zmean)
+        # for j in range(3):
+        #     zmean[j] += (X[0, i] * zTw3[0][j] + X[1, i] *
+        #                  zTw3[1][j] + X[2, i] * zTw3[2][j]) / X.shape[1]
+        zmean += (np.matmul(X[:, i],
+                  np.matmul(np.matmul(zTw, zTw), zTw)) / X.shape[1])
     w_new = zmean - 3 * w
 
     return w_new
@@ -80,7 +86,7 @@ def symm_orth(W):
     # W[1] /= np.abs(W[1]).sum()
     # W[2] /= np.abs(W[2]).sum()
 
-    W = 3/2 * W - 1/2 * np.dot(np.dot(W, W.T), W)
+    W = 3/2 * W - 1/2 * np.matmul(np.matmul(W, W.T), W)
 
     return W
 
@@ -107,12 +113,14 @@ def norm_calc(W):
     # W[1] /= np.sqrt((W[1]**2).sum())
     # W[2] /= np.sqrt((W[2]**2).sum())
     # ? NORM4
-    W /= W.sum()
+    W[0] /= np.sqrt((W[0, :] ** 2).sum())
+    W[1] /= np.sqrt((W[1, :] ** 2).sum())
+    W[2] /= np.sqrt((W[2, :] ** 2).sum())
 
     return W
 
 
-def ica(X, iterations, tolerance=1e-10):
+def ica(X, iterations, tolerance=1e-5):
     X = center(X)
     X = whitening(X)
     components_nr = X.shape[0]
@@ -122,16 +130,16 @@ def ica(X, iterations, tolerance=1e-10):
     W_ica = np.zeros((components_nr, components_nr), dtype=X.dtype)
 
     # Generate random W (initial value)
-    np.random.seed(1)
+    np.random.seed(100)
     for i in range(components_nr):
         W[i] = np.random.rand(components_nr)
     #################################
 
     for i in range(iterations):
         # one-unit fast ica module
-        W_new[0] = calculate_new_w(W[0], X)
-        W_new[1] = calculate_new_w(W[1], X)
-        W_new[2] = calculate_new_w(W[2], X)
+        W_new[0, :] = calculate_new_w(W[0, :], X)
+        W_new[1, :] = calculate_new_w(W[1, :], X)
+        W_new[2, :] = calculate_new_w(W[2, :], X)
         ############################
 
         # Error calculation module
@@ -140,11 +148,14 @@ def ica(X, iterations, tolerance=1e-10):
         W_ica = W_new.copy()
         W = W_new.copy()
 
+        W = norm_calc(W)
+
         if distance < tolerance:
             print("ITERATIONS:")
             print(i+1)
             print("DISTSANCE:")
             print(distance)
+            print(np.abs((np.dot(W.T, W) - np.identity(n=3))).sum())
             print("W")
             print(W)
             break
@@ -156,7 +167,7 @@ def ica(X, iterations, tolerance=1e-10):
         W[2] /= np.sqrt((W[2] ** 2).sum())
         while(1):
             W = symm_orth(W)
-            orth_test = np.abs((np.dot(W, W.T) - np.identity(n=3))).sum()
+            orth_test = np.abs((np.dot(W.T, W) - np.identity(n=3))).sum()
             print(orth_test)
             if orth_test < 0.0001:
                 break
